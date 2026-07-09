@@ -1,0 +1,30 @@
+proz:
+  token_url: https://www.proz.com/oauth/token
+  user_url: https://api.proz.com/v2/user
+
+xai:
+  model: grok-4.3
+
+anthropic:
+  model: claude-haiku-4-5
+
+openai:
+  model: gpt-5-mini
+
+google:
+  model: gemini-2.0-flash-lite
+
+mistral:
+  model: mistral-small-latest
+
+tokens:
+  access_token_expire_minutes: 30
+  algorithm: HS256
+
+db:
+  pg_pool_min_size: 2
+  pg_pool_max_size: 10
+  sql_dir: db/sql
+
+network:
+  timeout: 20.0

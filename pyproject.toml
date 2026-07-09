@@ -1,0 +1,33 @@
+[project]
+name = "llm-backend-proxy"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "cryptography>=48.0.0",
+    "dishka>=1.10.1",
+    "fastapi[standard]>=0.136.1",
+    "genai-prices>=0.0.66",
+    "pydantic-ai[xai,mistral]>=2.5.0",
+    "pyjwt>=2.12.1",
+    "slowapi>=0.1.10",
+]
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.4.0",
+    "dotenv>=0.9.9",
+    "psycopg[binary]>=3.3.4",
+    "asyncpg-stubs>=0.31.0",
+    "yoyo-migrations>=9.0.0",
+]
+lint = [
+    "ruff>=0.15.20",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
