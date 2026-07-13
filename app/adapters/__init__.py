@@ -1,4 +1,5 @@
 from app.adapters.chat_client import ChatService as ChatService
+from app.adapters.clock import Clock as Clock
 from app.adapters.proz_client import ProzClient as ProzClient
 from app.adapters.repository import AuthCommand as AuthCommand
 from app.adapters.repository import AuthQuery as AuthQuery

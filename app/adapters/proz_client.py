@@ -28,10 +28,9 @@ class ProzUser(DTO):
     membership: Membership = Field(alias="proz_membership")
 
     def to_domain(self) -> DomainProzUser:
-        membership = (
-            DomainProzMembership(self.membership.type, self.membership.expire_on)
-            if self.membership.type and self.membership.expire_on
-            else None
+        membership = DomainProzMembership(
+            self.membership.type,
+            self.membership.expire_on,
         )
         return DomainProzUser(
             id=self.proz_id,

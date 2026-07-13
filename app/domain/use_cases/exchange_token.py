@@ -4,6 +4,7 @@ from app.domain.models import Tokens
 from app.domain.ports import (
     AuthCommandPort,
     AuthQueryPort,
+    ClockPort,
     ProzClientPort,
     TokenServicePort,
 )
@@ -15,6 +16,7 @@ class CodeExchangeUseCase:
     db_query: AuthQueryPort
     proz_client: ProzClientPort
     token_service: TokenServicePort
+    clock: ClockPort
 
 
 async def exchange_token(code: str, use_case: CodeExchangeUseCase) -> Tokens:
@@ -30,6 +32,10 @@ async def exchange_token(code: str, use_case: CodeExchangeUseCase) -> Tokens:
     proz_user = await use_case.proz_client.get_token_owner(
         access_token=proz_tokens.access_token,
     )
+
+    # check membership
+    now = use_case.clock.now()
+    proz_user.membership.ensure_active(today=now)
 
     # generate authentication tokens
     tokens = use_case.token_service.generate_token_pair(user_id=proz_user.id)

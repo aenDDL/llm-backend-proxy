@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from app.domain.errors import UnauthorizedError
+
 if TYPE_CHECKING:
     from datetime import date
     from uuid import UUID
@@ -17,8 +19,25 @@ class Tokens:
 
 @dataclass(frozen=True)
 class ProzMembership:
-    type: str
-    expire_on: date
+    membership: str | None = field(default=None)
+    expire_on: date | None = field(default=None)
+
+    def has_type(self) -> bool:
+        return bool(self.membership)
+
+    def is_expired(self, today: date) -> bool:
+        return self.expire_on is None or self.expire_on < today
+
+    def is_active(self, today: date) -> bool:
+        return self.has_type() and not self.is_expired(today)
+
+    def ensure_active(self, today: date) -> None:
+        if not self.has_type():
+            msg = "Membership has no type assigned"
+            raise UnauthorizedError(msg)
+        if self.is_expired(today):
+            msg = "Membership has expired"
+            raise UnauthorizedError(msg)
 
 
 @dataclass(frozen=True)

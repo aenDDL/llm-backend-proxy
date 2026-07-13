@@ -4,6 +4,7 @@ from app.domain.models import Tokens
 from app.domain.ports import (
     AuthCommandPort,
     AuthQueryPort,
+    ClockPort,
     TokenServicePort,
 )
 
@@ -13,6 +14,7 @@ class TokenRefreshUseCase:
     db_cmd: AuthCommandPort
     db_query: AuthQueryPort
     token_service: TokenServicePort
+    clock: ClockPort
 
 
 async def refresh_token(
@@ -28,6 +30,12 @@ async def refresh_token(
     """
     # compare request token with token in database
     user_id = await use_case.db_query.get_token_owner(plain_token=plain_refresh_token)
+
+    # check membership
+    membership = await use_case.db_query.get_proz_status_info(user_id=user_id)
+
+    now = use_case.clock.now()
+    membership.ensure_active(today=now)
 
     # generate authentication tokens
     tokens = use_case.token_service.generate_token_pair(user_id=user_id)

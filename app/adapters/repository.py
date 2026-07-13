@@ -7,13 +7,14 @@ from asyncpg import Pool
 
 from app.adapters.security_service import Encrypter, Hasher
 from app.domain.errors import UnauthorizedError
-from app.domain.models import ChatDetails, ProzUser
+from app.domain.models import ChatDetails, ProzMembership, ProzUser
 
 
 class SQLQuery(StrEnum):
     INSERT_CHAT_DETAILS = "insert_chat_details.sql"
     SELECT_TOKEN_OWNER = "select_token_owner.sql"
     SELECT_USER_ID = "select_user_id.sql"
+    SELECT_PROZ_STATUS = "select_proz_status.sql"
     UPDATE_SESSION = "update_session.sql"
     UPSERT_PROZ_USER = "upsert_proz_user.sql"
     UPSERT_APP_TOKEN = "upsert_app_token.sql"
@@ -56,7 +57,7 @@ class AuthCommand:
                 self.sql_reader[SQLQuery.UPSERT_PROZ_USER],
                 proz_user.id,
                 proz_user.name,
-                proz_user.membership.type if proz_user.membership else None,
+                proz_user.membership.membership if proz_user.membership else None,
                 proz_user.membership.expire_on if proz_user.membership else None,
                 encrypted_proz_refresh_token,
             )
@@ -116,3 +117,10 @@ class AuthQuery:
             msg = "Refresh token does not exists"
             raise UnauthorizedError(msg)
         return token_owner
+
+    async def get_proz_status_info(self, user_id: UUID) -> ProzMembership:
+        info = await self.pool.fetchrow(
+            self.sql_reader[SQLQuery.SELECT_PROZ_STATUS],
+            user_id,
+        )
+        return ProzMembership(**info)

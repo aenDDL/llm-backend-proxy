@@ -8,6 +8,7 @@ from app.adapters import (
     AuthCommand,
     AuthQuery,
     ChatCommand,
+    Clock,
     Encrypter,
     Hasher,
     ProzClient,
@@ -19,6 +20,7 @@ from app.domain.ports import (
     AuthCommandPort,
     AuthQueryPort,
     ChatCommandPort,
+    ClockPort,
     ProzClientPort,
     TokenServicePort,
 )
@@ -42,6 +44,12 @@ def provide_use_cases() -> Provider:
     services_provider.provide(TokenRefreshUseCase)
 
     return services_provider
+
+
+def provide_clock() -> Provider:
+    clock_provider = Provider(scope=Scope.APP)
+    clock_provider.provide(Clock, provides=ClockPort)
+    return clock_provider
 
 
 class SettingsProvider(Provider):
@@ -111,4 +119,5 @@ def provide_deps() -> tuple[Provider]:
         ProzClientProvider(),
         SecurityProvider(),
         SettingsProvider(),
+        provide_clock(),
     )

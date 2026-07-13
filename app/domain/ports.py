@@ -1,10 +1,12 @@
 from collections.abc import AsyncIterator
+from datetime import date
 from typing import Protocol
 from uuid import UUID
 
 from app.domain.models import (
     ChatDetails,
     ChatPrompts,
+    ProzMembership,
     ProzUser,
     Tokens,
 )
@@ -37,8 +39,13 @@ class ChatCommandPort(Protocol):
 class AuthQueryPort(Protocol):
     async def check_if_user_exists(self, user_id: UUID) -> None: ...
     async def get_token_owner(self, plain_token: str) -> UUID: ...
+    async def get_proz_status_info(self, user_id: UUID) -> ProzMembership: ...
 
 
 class ChatServicePort(Protocol):
     def run_stream(self, prompts: ChatPrompts) -> AsyncIterator[str]: ...
     def get_details(self) -> ChatDetails: ...
+
+
+class ClockPort(Protocol):
+    def now(self) -> date: ...
