@@ -6,7 +6,7 @@ from uuid import UUID
 from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
-from app.adapters.network_requests import get_response
+from app.adapters.http_client import DTO, fetch_request
 from app.domain.models import ProzMembership as DomainProzMembership
 from app.domain.models import ProzUser as DomainProzUser
 from app.domain.models import Tokens
@@ -19,7 +19,7 @@ class Membership(BaseModel):
     expire_on: date | None = Field(alias="expiration_date", default=None)
 
 
-class ProzUser(BaseModel):
+class ProzUser(DTO):
     model_config = ConfigDict(populate_by_name=True)
 
     proz_id: UUID = Field(alias="uuid")
@@ -41,7 +41,7 @@ class ProzUser(BaseModel):
         )
 
 
-class ProzTokens(BaseModel):
+class ProzTokens(DTO):
     access_token: str
     refresh_token: str
 
@@ -69,11 +69,10 @@ class ProzClient:
                 "redirect_uri": self.redirect_uri,
             },
         )
-        response = await get_response(
+        return await fetch_request(
             request=request,
             expected_response_model=ProzTokens,
         )
-        return response.to_domain_entity()
 
     async def get_token_owner(self, access_token: str) -> DomainProzUser:
         request = partial(
@@ -81,5 +80,7 @@ class ProzClient:
             url=self.user_url,
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        response = await get_response(request=request, expected_response_model=ProzUser)
-        return response.to_domain_entity()
+        return await fetch_request(
+            request=request,
+            expected_response_model=ProzUser,
+        )

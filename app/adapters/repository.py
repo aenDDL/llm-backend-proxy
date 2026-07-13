@@ -5,7 +5,7 @@ from uuid import UUID
 
 from asyncpg import Pool
 
-from app.adapters.security import Encrypter, Hasher
+from app.adapters.security_service import Encrypter, Hasher
 from app.domain.errors import UnauthorizedError
 from app.domain.models import ChatDetails, ProzUser
 
