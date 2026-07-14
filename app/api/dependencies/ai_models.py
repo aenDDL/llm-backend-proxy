@@ -11,6 +11,7 @@ from dishka import (
     provide,
 )
 from fastapi import Request
+from httpx import AsyncClient
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
@@ -127,9 +128,10 @@ class XaiProviders(Provider):
 
 class AnthropicProviders(Provider):
     @provide(scope=Scope.APP)
-    def provider(self, settings: Settings) -> AnthropicProvider:
+    def provider(self, settings: Settings, client: AsyncClient) -> AnthropicProvider:
         return AnthropicProvider(
             api_key=settings.anthropic.anthropic_api_key.get_secret_value(),
+            http_client=client,
         )
 
     @provide(scope=Scope.APP)
@@ -154,8 +156,11 @@ class AnthropicProviders(Provider):
 
 class OpenAIProviders(Provider):
     @provide(scope=Scope.APP)
-    def provider(self, settings: Settings) -> OpenAIProvider:
-        return OpenAIProvider(api_key=settings.openai.openai_api_key.get_secret_value())
+    def provider(self, settings: Settings, client: AsyncClient) -> OpenAIProvider:
+        return OpenAIProvider(
+            api_key=settings.openai.openai_api_key.get_secret_value(),
+            http_client=client,
+        )
 
     @provide(scope=Scope.APP)
     def model(
@@ -179,8 +184,11 @@ class OpenAIProviders(Provider):
 
 class GoogleProviders(Provider):
     @provide(scope=Scope.APP)
-    def provider(self, settings: Settings) -> GoogleProvider:
-        return GoogleProvider(api_key=settings.google.google_api_key.get_secret_value())
+    def provider(self, settings: Settings, client: AsyncClient) -> GoogleProvider:
+        return GoogleProvider(
+            api_key=settings.google.google_api_key.get_secret_value(),
+            http_client=client,
+        )
 
     @provide(scope=Scope.APP)
     def model(
@@ -204,9 +212,10 @@ class GoogleProviders(Provider):
 
 class MistralProviders(Provider):
     @provide(scope=Scope.APP)
-    def provider(self, settings: Settings) -> MistralProvider:
+    def provider(self, settings: Settings, client: AsyncClient) -> MistralProvider:
         return MistralProvider(
             api_key=settings.mistral.mistral_api_key.get_secret_value(),
+            http_client=client,
         )
 
     @provide(scope=Scope.APP)
