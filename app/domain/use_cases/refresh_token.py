@@ -33,7 +33,6 @@ async def refresh_token(
 
     # check membership
     membership = await use_case.db_query.get_proz_status_info(user_id=user_id)
-
     now = use_case.clock.now()
     membership.ensure_active(today=now)
 

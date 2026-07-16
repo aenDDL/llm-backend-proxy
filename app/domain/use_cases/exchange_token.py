@@ -23,7 +23,7 @@ async def exchange_token(code: str, use_case: CodeExchangeUseCase) -> Tokens:
     """Authorize user and register in database.
 
     Raises:
-        UnauthorizedError: if ProZ code invalid
+        UnauthorizedError: if ProZ code invalid or membership not exists/expired
         UnavailableError: if any service is down
 
     """

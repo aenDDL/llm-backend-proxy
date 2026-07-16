@@ -1,100 +1,90 @@
-import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.domain.models import ProzCode, ProzTokens, ProzUser, Tokens
+from app.domain.errors import UnauthorizedError
+from app.domain.models import ProzUser, Tokens
 from app.domain.ports import (
-    DatabaseCommandPort,
-    DatabaseQueryPort,
-    JWTPort,
     ProzClientPort,
 )
-from app.use_cases.exchange_token import (
-    TokenCreateService,
-    handle_create_token_via_proz_event,
-)
+from app.domain.use_cases.exchange_token import CodeExchangeUseCase, exchange_token
 
 
 @pytest.fixture
-def proz_user() -> ProzUser:
-    return ProzUser(id=uuid.uuid4(), name="test_name")
+def mock_proz_client(
+    test_user: ProzUser,
+    test_tokens: Tokens,
+) -> AsyncMock:
+    test_proz_client = AsyncMock(spec=ProzClientPort)
+    test_proz_client.exchange_code_for_tokens = AsyncMock(return_value=test_tokens)
+    test_proz_client.get_token_owner = AsyncMock(return_value=test_user)
+    return test_proz_client
 
 
 @pytest.fixture
-def proz_tokens() -> ProzTokens:
-    test_access_token = "test"
-    test_refresh_token = "test"
-    return ProzTokens(
-        access_token=test_access_token,
-        refresh_token=test_refresh_token,
+def mock_exchange_token_use_case(
+    mock_auth_cmd: AsyncMock,
+    mock_auth_query: AsyncMock,
+    mock_proz_client: AsyncMock,
+    mock_token_service: MagicMock,
+    mock_clock: MagicMock,
+) -> CodeExchangeUseCase:
+    return CodeExchangeUseCase(
+        db_cmd=mock_auth_cmd,
+        db_query=mock_auth_query,
+        proz_client=mock_proz_client,
+        token_service=mock_token_service,
+        clock=mock_clock,
     )
 
 
-@pytest.fixture
-def mock_proz_client_port(proz_user: ProzUser, proz_tokens: ProzTokens) -> AsyncMock:
-    proz_client_service = AsyncMock(spec=ProzClientPort)
-    proz_client_service.exchange_code_for_tokens = AsyncMock(return_value=proz_tokens)
-    proz_client_service.get_token_owner.return_value = proz_user
-    return proz_client_service
-
-
-@pytest.fixture
-def services(
-    mock_db_cmd: DatabaseCommandPort,
-    mock_db_queries: DatabaseQueryPort,
-    mock_proz_client_port: ProzClientPort,
-    mock_jwt_port: JWTPort,
-) -> TokenCreateService:
-    return TokenCreateService(
-        db_cmd=mock_db_cmd,
-        db_queries=mock_db_queries,
-        proz_client_port=mock_proz_client_port,
-        jwt_port=mock_jwt_port,
-    )
-
-
-async def test_handle_create_token_via_proz_event(
-    services: TokenCreateService,
+async def test_exchange_token(
+    mock_exchange_token_use_case: CodeExchangeUseCase,
 ) -> None:
-    request = ProzCode(code="test_code")
-    fixed_refresh_token = uuid.uuid4()
+    use_case = mock_exchange_token_use_case
+    test_code = "2eb10703-72eb-4e38-b7ed-2f7f811973a0"
 
-    with patch(
-        "app.domain.events.token_created.uuid4",
-        return_value=fixed_refresh_token,
-    ):
-        result = await handle_create_token_via_proz_event(request, services)
+    result = await exchange_token(test_code, use_case)
+    assert result == use_case.token_service.generate_token_pair.return_value
 
-    assert isinstance(result, Tokens)
-
-    expected_proz_access_token = (
-        services.proz_client_port.exchange_code_for_tokens.return_value.access_token
+    # fetch info about proz user
+    use_case.proz_client.exchange_code_for_tokens.assert_awaited_once_with(
+        code=test_code,
     )
-    expected_proz_refresh_token = (
-        services.proz_client_port.exchange_code_for_tokens.return_value.refresh_token
-    )
-    expected_proz_user_info = services.proz_client_port.get_token_owner.return_value
-    expected_user_id = services.db_queries.get_user_id_by_proz_id.return_value
-
-    services.proz_client_port.exchange_code_for_tokens.assert_called_once_with(
-        request.code,
-    )
-    services.proz_client_port.get_token_owner.assert_called_once_with(
-        expected_proz_access_token,
-    )
-    services.db_queries.get_user_id_by_proz_id.assert_called_once_with(
-        expected_proz_user_info.id,
-    )
-    services.jwt_port.create_token.assert_called_once_with(expected_user_id)
-    services.db_cmd.upsert_proz_user.assert_called_once_with(
-        expected_user_id,
-        expected_proz_user_info,
-        expected_proz_refresh_token,
-    )
-    services.db_cmd.refresh_session.assert_called_once_with(
-        expected_user_id,
-        fixed_refresh_token,
+    use_case.proz_client.get_token_owner.assert_awaited_once_with(
+        access_token=use_case.proz_client.exchange_code_for_tokens.return_value.access_token,
     )
 
-    assert result.refresh_token == fixed_refresh_token
+    # check membership
+    use_case.clock.now.assert_called_once()
+    use_case.proz_client.get_token_owner.return_value.membership.ensure_active.assert_called_once_with(
+        today=use_case.clock.now.return_value,
+    )
+
+    # generate authentication tokens
+    use_case.token_service.generate_token_pair.assert_called_once_with(
+        user_id=use_case.proz_client.get_token_owner.return_value.id,
+    )
+
+    # upsert to database
+    use_case.db_cmd.upsert_proz_info.assert_called_once_with(
+        proz_user=use_case.proz_client.get_token_owner.return_value,
+        plain_proz_refresh_token=use_case.proz_client.exchange_code_for_tokens.return_value.refresh_token,
+        plain_refresh_token=use_case.token_service.generate_token_pair.return_value.refresh_token,
+    )
+
+
+async def test_exchange_token_invalid_membership(
+    mock_exchange_token_use_case: CodeExchangeUseCase,
+) -> None:
+    use_case = mock_exchange_token_use_case
+    test_code = "2eb10703-72eb-4e38-b7ed-2f7f811973a0"
+    use_case.proz_client.get_token_owner.return_value.membership.ensure_active.side_effect = (  # ruff:ignore[line-too-long]
+        UnauthorizedError()
+    )
+
+    with pytest.raises(UnauthorizedError):
+        await exchange_token(test_code, use_case)
+
+    use_case.token_service.generate_token_pair.assert_not_called()
+    use_case.db_cmd.upsert_proz_info.assert_not_awaited()

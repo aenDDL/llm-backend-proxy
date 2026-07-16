@@ -1,53 +1,67 @@
-import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.domain.models import RefreshToken, Tokens
-from app.domain.ports import (
-    DatabaseCommandPort,
-    DatabaseQueryPort,
-    JWTPort,
-)
-from app.use_cases.refresh_token import (
-    TokenRefreshService,
-    handle_refresh_token_event,
-)
+from app.domain.errors import UnauthorizedError
+from app.domain.use_cases.refresh_token import TokenRefreshUseCase, refresh_token
 
 
 @pytest.fixture
-def services(
-    mock_db_cmd: DatabaseCommandPort,
-    mock_db_queries: DatabaseQueryPort,
-    mock_jwt_port: JWTPort,
-) -> TokenRefreshService:
-    return TokenRefreshService(
-        db_cmd=mock_db_cmd,
-        db_queries=mock_db_queries,
-        jwt_port=mock_jwt_port,
+def mock_refresh_token_use_case(
+    mock_auth_cmd: AsyncMock,
+    mock_auth_query: AsyncMock,
+    mock_token_service: MagicMock,
+    mock_clock: MagicMock,
+) -> TokenRefreshUseCase:
+    return TokenRefreshUseCase(
+        db_cmd=mock_auth_cmd,
+        db_query=mock_auth_query,
+        token_service=mock_token_service,
+        clock=mock_clock,
     )
 
 
-async def test_handle_refresh_token(
-    services: TokenRefreshService,
+async def test_refresh_token(mock_refresh_token_use_case: TokenRefreshUseCase) -> None:
+    use_case = mock_refresh_token_use_case
+    plain_token = "2eb10703-72eb-4e38-b7ed-2f7f811973a0"
+
+    result = await refresh_token(plain_token, use_case)
+    assert result == use_case.token_service.generate_token_pair.return_value
+
+    # compare request token with token in database
+    use_case.db_query.get_token_owner.assert_awaited_once_with(
+        plain_token=plain_token,
+    )
+
+    # check membership
+    use_case.clock.now.assert_called_once()
+    use_case.db_query.get_proz_status_info.return_value.ensure_active.assert_called_once_with(
+        today=use_case.clock.now.return_value,
+    )
+
+    # generate authentication tokens
+    use_case.token_service.generate_token_pair.assert_called_once_with(
+        user_id=use_case.db_query.get_token_owner.return_value,
+    )
+
+    # save data in database
+    use_case.db_cmd.update_session.assert_awaited_once_with(
+        user_id=use_case.db_query.get_token_owner.return_value,
+        plain_refresh_token=use_case.token_service.generate_token_pair.return_value.refresh_token,
+    )
+
+
+async def test_refresh_token_invalid_membership(
+    mock_refresh_token_use_case: TokenRefreshUseCase,
 ) -> None:
-    test_token = "test_refresh_token"
-    request = RefreshToken(token=test_token)
-    fixed_refresh_token = uuid.uuid4()
-    with patch(
-        "app.domain.events.token_refreshed.uuid4",
-        return_value=fixed_refresh_token,
-    ):
-        result = await handle_refresh_token_event(request, services)
-
-    assert isinstance(result, Tokens)
-
-    expected_user_id = services.db_queries.get_user_id_by_token.return_value
-
-    services.db_queries.get_user_id_by_token.assert_called_once_with(request.token)
-    services.jwt_port.create_token.assert_called_once_with(expected_user_id)
-
-    services.db_cmd.refresh_session.assert_called_once_with(
-        expected_user_id,
-        fixed_refresh_token,
+    use_case = mock_refresh_token_use_case
+    plain_token = "2eb10703-72eb-4e38-b7ed-2f7f811973a0"
+    use_case.db_query.get_proz_status_info.return_value.ensure_active.side_effect = (
+        UnauthorizedError()
     )
+
+    with pytest.raises(UnauthorizedError):
+        await refresh_token(plain_token, use_case)
+
+    use_case.token_service.generate_token_pair.assert_not_called()
+    use_case.db_cmd.update_session.assert_not_awaited()
