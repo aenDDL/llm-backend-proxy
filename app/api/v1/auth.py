@@ -1,6 +1,6 @@
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.middleware.limiter import limiter
 from app.domain.use_cases.exchange_token import CodeExchangeUseCase, exchange_token
@@ -10,11 +10,11 @@ router = APIRouter(route_class=DishkaRoute, prefix="/oauth")
 
 
 class AuthCodeIn(BaseModel):
-    code: str
+    code: str = Field(min_length=10, max_length=512)
 
 
 class RefreshTokenIn(BaseModel):
-    token: str
+    refresh_token: str = Field(min_length=36, max_length=36)
 
 
 class TokensOut(BaseModel):
@@ -44,7 +44,7 @@ async def refresh_token_endpoint(
     use_case: FromDishka[TokenRefreshUseCase],
 ):
     result = await refresh_token(
-        plain_refresh_token=payload.token,
+        plain_refresh_token=payload.refresh_token,
         use_case=use_case,
     )
     return TokensOut(access=result.access_token, refresh=result.refresh_token)
