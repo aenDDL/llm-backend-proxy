@@ -6,7 +6,7 @@ from uuid import UUID
 from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
-from app.adapters.http_client import DTO, fetch_request
+from app.adapters.http_client import DataTransfer, fetch_request
 from app.domain.models import ProzMembership as DomainProzMembership
 from app.domain.models import ProzUser as DomainProzUser
 from app.domain.models import Tokens
@@ -19,7 +19,7 @@ class Membership(BaseModel):
     expire_on: date | None = Field(alias="expiration_date", default=None)
 
 
-class ProzUser(DTO):
+class ProzUser(DataTransfer):
     model_config = ConfigDict(populate_by_name=True)
 
     proz_id: UUID = Field(alias="uuid")
@@ -40,7 +40,7 @@ class ProzUser(DTO):
         )
 
 
-class ProzTokens(DTO):
+class ProzTokens(DataTransfer):
     access_token: str
     refresh_token: str
 
@@ -70,7 +70,7 @@ class ProzClient:
         )
         return await fetch_request(
             request=request,
-            expected_response_model=ProzTokens,
+            expected_dto=ProzTokens,
         )
 
     async def get_token_owner(self, access_token: str) -> DomainProzUser:
@@ -81,5 +81,5 @@ class ProzClient:
         )
         return await fetch_request(
             request=request,
-            expected_response_model=ProzUser,
+            expected_dto=ProzUser,
         )
